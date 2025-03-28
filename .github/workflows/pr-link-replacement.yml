@@ -19,23 +19,21 @@ jobs:
             const pr = context.payload.pull_request;
             let body = pr.body;
             
-            // Get branch name and transform it
             let branchName = pr.head.ref;
+
+            // Replace forward slashes with dashes
             let transformedBranchName = branchName.replace(/\//g, '-');
             
-            // Create sandbox link
             let sandboxLink = `[Sandbox](https://branch-${transformedBranchName}.sandbox.internal.samsara.com)`;
             
-            // Create dev storybook link
             let devStoryBookLink = `[Dev Storybook](https://dev-storybook.internal.samsara.com/branches/{transformedBranchName}/index.html)`;
 
             let kitStoryBookLink = `[Kit Storybook](https://kit.internal.samsara.com/branches/${transformedBranchName}/index.html)`;
             
-            // Replace the empty placeholders with generated links
             body = body.replace(/\[Sandbox\]\(\)/, sandboxLink);
             body = body.replace(/\[Dev Storybook\]\(\)/, devStoryBookLink);
             body = body.replace(/\[Kit Storybook\]\(\)/, kitStoryBookLink);
-            
+
             // Update PR description
             await github.rest.pulls.update({
               owner: context.repo.owner,
