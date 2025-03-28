@@ -17,8 +17,8 @@
   - [ ] 📜 I confirmed that existing tests provide sufficient coverage
 - [ ] 🏡 I tested this locally
 - [ ] 🌁 I tested this by deploying to staging
-- [ ] 🏖️ I tested this on [Sandbox]() <!-- Consider adding a relevant sandbox link for your reviewer: [Sandbox](http://branch-dashedbranchname.sandbox.internal.samsara.com) -->
-- [ ] 🎨 I tested this on [Dev Storybook]() <!-- Consider adding a relevant dev storybook link for your reviewer: [Dev Storybook](https://dev-storybook.internal.com/branches/dashedbranchname/index.html) -->
+- [ ] 🏖️ I tested this on [Sandbox]() 
+- [ ] 🎨 I tested this on [Dev Storybook]()
 - [ ] 📋 I tested this by validating the terraform plan
 - [ ] ⛰️ I tested this by validating the terraform diff
 

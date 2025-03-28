@@ -1,0 +1,35 @@
+name: PR Template Processing
+
+on:
+  pull_request:
+    types: [opened, edited]
+
+jobs:
+  process-template:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            let body = pr.body;
+            
+            // Get branch name and transform it
+            let branchName = pr.head.ref;
+            let transformedBranchName = branchName.replace(/\//g, '-');
+            
+            // Create sandbox link
+            let sandboxLink = `[Sandbox](http://branch-${transformedBranchName}.sandbox.internal.samsara.com)`;
+            let devStoryBookLink = `[Dev Storybook](https://dev-storybook.internal.com/branches/#{transformedBranchName}/index.html)`;
+            
+            // Replace the empty sandbox placeholder with the generated link
+            body = body.replace(/\[Sandbox\]\(\)/, sandboxLink);
+            body = body.replace(/\[Dev Storybook\]\(\)/, devStoryBookLink);
+            
+            // Update PR description
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              body: body
+            });
