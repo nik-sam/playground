@@ -4,12 +4,17 @@ on:
   pull_request:
     types: [opened, edited]
 
+permissions:
+  pull-requests: write
+
 jobs:
   process-template:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
+      - name: Process PR Template
+        uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const pr = context.payload.pull_request;
             let body = pr.body;
@@ -20,9 +25,11 @@ jobs:
             
             // Create sandbox link
             let sandboxLink = `[Sandbox](http://branch-${transformedBranchName}.sandbox.internal.samsara.com)`;
-            let devStoryBookLink = `[Dev Storybook](https://dev-storybook.internal.com/branches/#{transformedBranchName}/index.html)`;
             
-            // Replace the empty sandbox placeholder with the generated link
+            // Create dev storybook link
+            let devStoryBookLink = `[Dev Storybook](https://dev-storybook.internal.com/branches/${transformedBranchName}/index.html)`;
+            
+            // Replace the empty placeholders with generated links
             body = body.replace(/\[Sandbox\]\(\)/, sandboxLink);
             body = body.replace(/\[Dev Storybook\]\(\)/, devStoryBookLink);
             
