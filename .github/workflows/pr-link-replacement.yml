@@ -17,19 +17,19 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const pr = context.payload.pull_request;
-            const body = pr.body;
-
-            const branchName = pr.head.ref;
+            let body = pr.body;
+            
+            let branchName = pr.head.ref;
 
             // Replace forward slashes with dashes
-            const transformedBranchName = branchName.replace(/\//g, '-');
+            let transformedBranchName = branchName.replace(/\//g, '-');
+            
+            let sandboxLink = `[Sandbox](https://branch-${transformedBranchName}.sandbox.internal.samsara.com)`;
+            
+            let devStoryBookLink = `[Dev Storybook](https://dev-storybook.internal.samsara.com/branches/${transformedBranchName}/index.html)`;
 
-            const sandboxLink = `[Sandbox](https://branch-${transformedBranchName}.sandbox.internal.samsara.com)`;
-
-            const devStoryBookLink = `[Dev Storybook](https://dev-storybook.internal.samsara.com/branches/${transformedBranchName}/index.html)`;
-
-            const kitStoryBookLink = `[Kit Storybook](https://kit.internal.samsara.com/branches/${transformedBranchName}/index.html)`;
-
+            let kitStoryBookLink = `[Kit Storybook](https://kit.internal.samsara.com/branches/${transformedBranchName}/index.html)`;
+            
             body = body.replace(/\[Sandbox\]\(\)/, sandboxLink);
             body = body.replace(/\[Dev Storybook\]\(\)/, devStoryBookLink);
             body = body.replace(/\[Kit Storybook\]\(\)/, kitStoryBookLink);
