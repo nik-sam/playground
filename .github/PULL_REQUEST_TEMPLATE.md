@@ -19,6 +19,7 @@
 - [ ] 🌁 I tested this by deploying to staging
 - [ ] 🏖️ I tested this on [Sandbox]() 
 - [ ] 🎨 I tested this on [Dev Storybook]()
+- [ ] 🎨 I tested this on [Kit Storybook]()
 - [ ] 📋 I tested this by validating the terraform plan
 - [ ] ⛰️ I tested this by validating the terraform diff
 
