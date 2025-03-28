@@ -1,4 +1,4 @@
-name: PR Template Processing
+name: PR Link Replacement
 
 on:
   pull_request:
