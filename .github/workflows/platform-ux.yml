@@ -1,0 +1,63 @@
+name: Slack PR Notification
+
+on:
+  pull_request:
+    types: [opened]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  notify_slack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get PR details
+        id: pr_details
+        run: |
+          echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          echo "PR_TITLE=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+          echo "PR_URL=${{ github.event.pull_request.html_url }}" >> $GITHUB_OUTPUT
+          echo "PR_USER=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
+          echo "PR_REVIEW_STATE=${{ github.event.review.state }}" >> $GITHUB_OUTPUT
+          echo "PR_REVIEW_USER=${{ github.event.review.user.login }}" >> $GITHUB_OUTPUT
+
+      - name: Filter by Team and PR Open
+        if: ${{ github.event.pull_request.user.login == 'nik-sam' && github.event.action == 'opened' }}
+        run: |
+          echo "TEAM_PR=true" >> $GITHUB_ENV
+
+      - name: Send Slack Notification (PR Opened)
+        if: env.TEAM_PR == 'true' && github.event.action == 'opened'
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "New PR opened by ${{ steps.pr_details.outputs.PR_USER }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.PLATFORM_UX_WEBHOOK_URL }}
+
+      - name: Send Slack Notification (PR Approved)
+        if: github.event.review.state == 'approved'
+        id: slack_message
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "PR approved by ${{ steps.pr_details.outputs.PR_REVIEW_USER }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}> ✅",
+              "channel": "nik-playground"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.PLATFORM_UX_WEBHOOK_URL }}
+
+      - name: Add Green Checkmark Reaction
+        if: github.event.review.state == 'approved'
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: 'nik-playground'
+          slack-message-ts: ${{ steps.slack_message.outputs.ts }}
+          reaction: 'white_check_mark'
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
