@@ -5,20 +5,30 @@ on:
     types: [opened, closed]
   pull_request_review:
     types: [submitted]
+
+# Workflow-level variables (available to all jobs)
+env:
+  SLACK_CHANNEL: "niks-playground"
+  TEAM_MEMBERS_TOP_LEVEL: "nik-sam, NikS-44"
   
 jobs:
   notify_slack:
-    env:
-      PLATFORM_UX_TEAM_MEMBERS: '["nik-sam", "nik-sam@platform-ux.yml"]'
-    if: ${{ contains(fromJSON(env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login) || startsWith(github.event.pull_request.user.login, 'nik-sam') }}
+    # Can't use env variables in if conditions at the job level
+    if: ${{ github.event.pull_request.user.login == 'nik-sam' || startsWith(github.event.pull_request.user.login, 'nik-sam') }}
     runs-on: ubuntu-latest
+    # Job-level variables (available to all steps in this job)
+    env:
+      TEAM_MEMBERS: "nik-sam, NikS-44"
     steps:
       - name: Debug Info
         run: |
           echo "PR Author: ${{ github.event.pull_request.user.login }}"
           echo "Event Type: ${{ github.event.action }}"
-          echo "Team Members: ${{ env.PLATFORM_UX_TEAM_MEMBERS }}"
-          echo "Is team member: ${{ contains(fromJSON(env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login) }}"
+          echo "Is nik-sam: ${{ github.event.pull_request.user.login == 'nik-sam' }}"
+          echo "Starts with nik-sam: ${{ startsWith(github.event.pull_request.user.login, 'nik-sam') }}"
+          echo "Team Members: ${{ env.TEAM_MEMBERS }}"
+          echo "Team Members Top Level: ${{ env.TEAM_MEMBERS_TOP_LEVEL }}"
+          echo "Slack Channel: ${{ env.SLACK_CHANNEL }}"
 
       - name: Get PR details
         id: pr_details
@@ -38,7 +48,7 @@ jobs:
           payload: |
             {
               "text": "New PR opened by ${{ steps.pr_details.outputs.PR_USER }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}>",
-              "channel": "niks-playground"
+              "channel": "${{ env.SLACK_CHANNEL }}"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.PLATFORM_UX_WEBHOOK_URL }}
@@ -50,7 +60,7 @@ jobs:
           RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
             -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
             -H "Content-Type: application/json" \
-            --data "{\"channel\": \"niks-playground\", \"limit\": 100}")
+            --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"limit\": ${{ env.MAX_MESSAGES }}}")
           
           # Find message with PR URL
           MESSAGE_TS=$(echo $RESPONSE | jq -r --arg url "${{ steps.pr_details.outputs.PR_URL }}" '.messages[] | select(.text | contains($url)) | .ts' | head -n1)
@@ -60,7 +70,7 @@ jobs:
             curl -X POST https://slack.com/api/reactions.add \
               -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
               -H "Content-Type: application/json" \
-              --data "{\"channel\": \"niks-playground\", \"name\": \"white_check_mark\", \"timestamp\": \"$MESSAGE_TS\"}"
+              --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"name\": \"white_check_mark\", \"timestamp\": \"$MESSAGE_TS\"}"
           fi
 
       - name: Find and React to Message (Merged)
@@ -70,7 +80,7 @@ jobs:
           RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
             -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
             -H "Content-Type: application/json" \
-            --data "{\"channel\": \"niks-playground\", \"limit\": 100}")
+            --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"limit\": ${{ env.MAX_MESSAGES }}}")
           
           # Find message with PR URL
           MESSAGE_TS=$(echo $RESPONSE | jq -r --arg url "${{ steps.pr_details.outputs.PR_URL }}" '.messages[] | select(.text | contains($url)) | .ts' | head -n1)
@@ -80,5 +90,5 @@ jobs:
             curl -X POST https://slack.com/api/reactions.add \
               -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
               -H "Content-Type: application/json" \
-              --data "{\"channel\": \"niks-playground\", \"name\": \"arrows_counterclockwise\", \"timestamp\": \"$MESSAGE_TS\"}"
+              --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"name\": \"arrows_counterclockwise\", \"timestamp\": \"$MESSAGE_TS\"}"
           fi
