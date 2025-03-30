@@ -6,24 +6,11 @@ on:
   pull_request_review:
     types: [submitted]
   
-env:
-  PLATFORM_UX_TEAM_MEMBERS: '["nik-sam", "nik-sam@platform-ux.yml"]'
-
 jobs:
-  debug:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Debug Info
-        run: |
-          echo "PR Author: ${{ github.event.pull_request.user.login }}"
-          echo "Event Type: ${{ github.event.action }}"
-          echo "Team Members: ${{ env.PLATFORM_UX_TEAM_MEMBERS }}"
-          echo "Is exact match: ${{ contains(fromJSON(env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login) }}"
-          echo "Starts with nik-sam: ${{ startsWith(github.event.pull_request.user.login, 'nik-sam') }}"
-
   notify_slack:
-    needs: debug
-    if: ${{ contains(fromJSON(env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login) || startsWith(github.event.pull_request.user.login, 'nik-sam') }}
+    env:
+      PLATFORM_UX_TEAM_MEMBERS: '["nik-sam", "nik-sam@platform-ux.yml"]'  # Define here too
+    if: ${{ contains(fromJSON(job.env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login) || startsWith(github.event.pull_request.user.login, 'nik-sam') }}
     runs-on: ubuntu-latest
     steps:
       - name: Get PR details
