@@ -1,7 +1,5 @@
 ## What problem does this change address?
 
-🎟 **JIRA Ticket**: https://samsaradev.atlassian.net/browse/TEAM-123
-
 <!-- Summarize the bug, missing feature, or other issue that this change addresses. In essence, why are you making this change? -->
 
 ## How did I solve the problem?
