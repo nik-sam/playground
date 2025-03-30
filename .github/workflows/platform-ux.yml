@@ -29,7 +29,7 @@ jobs:
 
   notify_slack:
     needs: debug
-    if: contains(fromJSON(env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login)
+    if: ${{ contains(fromJSON(env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login) || startsWith(github.event.pull_request.user.login, 'nik-sam') }}
     runs-on: ubuntu-latest
     steps:
       - name: Get PR details
