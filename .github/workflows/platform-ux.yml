@@ -6,29 +6,34 @@ on:
   pull_request_review:
     types: [submitted]
 
-# Workflow-level variables (available to all jobs)
 env:
   SLACK_CHANNEL: "niks-playground"
-  TEAM_MEMBERS_TOP_LEVEL: "nik-sam, NikS-44"
+  # Mapping of GitHub usernames to Slack member IDs
+  # Format for mentions in Slack is <@SLACK_MEMBER_ID>
+  GITHUB_TO_SLACK_USERS: >-
+    {
+      "nik-sam": "U08E3LB1N58",
+      "NikS-44": ""
+    }
   
 jobs:
   notify_slack:
-    # Can't use env variables in if conditions at the job level
-    if: ${{ github.event.pull_request.user.login == 'nik-sam' || startsWith(github.event.pull_request.user.login, 'nik-sam') }}
+    if: ${{ github.event.pull_request.user.login == 'nik-sam' || github.event.pull_request.user.login == 'NikS-44' }}
     runs-on: ubuntu-latest
-    # Job-level variables (available to all steps in this job)
-    env:
-      TEAM_MEMBERS: "nik-sam, NikS-44"
     steps:
       - name: Debug Info
         run: |
           echo "PR Author: ${{ github.event.pull_request.user.login }}"
           echo "Event Type: ${{ github.event.action }}"
-          echo "Is nik-sam: ${{ github.event.pull_request.user.login == 'nik-sam' }}"
-          echo "Starts with nik-sam: ${{ startsWith(github.event.pull_request.user.login, 'nik-sam') }}"
-          echo "Team Members: ${{ env.TEAM_MEMBERS }}"
-          echo "Team Members Top Level: ${{ env.TEAM_MEMBERS_TOP_LEVEL }}"
-          echo "Slack Channel: ${{ env.SLACK_CHANNEL }}"
+          echo "GitHub Username: ${{ github.event.pull_request.user.login }}"
+          echo "Slack ID Mapping: ${{ env.GITHUB_TO_SLACK_USERS }}"
+          
+          # Extract the Slack ID for the GitHub user using jq (if jq is available)
+          if command -v jq &> /dev/null; then
+            GITHUB_USER="${{ github.event.pull_request.user.login }}"
+            SLACK_ID=$(echo '${{ env.GITHUB_TO_SLACK_USERS }}' | jq -r --arg user "$GITHUB_USER" '.[$user] // "unknown"')
+            echo "Mapped Slack ID: $SLACK_ID"
+          fi 
 
       - name: Get PR details
         id: pr_details
@@ -39,6 +44,26 @@ jobs:
           echo "PR_USER=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
           echo "PR_REVIEW_STATE=${{ github.event.review.state }}" >> $GITHUB_OUTPUT
           echo "PR_REVIEW_USER=${{ github.event.review.user.login }}" >> $GITHUB_OUTPUT
+          
+          # Get Slack ID from GitHub username
+          GITHUB_USER="${{ github.event.pull_request.user.login }}"
+          PR_USER_SLACK_ID=$(echo '${{ env.GITHUB_TO_SLACK_USERS }}' | jq -r --arg user "$GITHUB_USER" '.[$user] // ""')
+          if [ -n "$PR_USER_SLACK_ID" ]; then
+            echo "PR_USER_SLACK_MENTION=<@$PR_USER_SLACK_ID>" >> $GITHUB_OUTPUT
+          else
+            echo "PR_USER_SLACK_MENTION=$GITHUB_USER" >> $GITHUB_OUTPUT
+          fi
+          
+          # Get reviewer's Slack ID if applicable
+          if [ -n "${{ github.event.review.user.login }}" ]; then
+            REVIEWER="${{ github.event.review.user.login }}"
+            REVIEWER_SLACK_ID=$(echo '${{ env.GITHUB_TO_SLACK_USERS }}' | jq -r --arg user "$REVIEWER" '.[$user] // ""')
+            if [ -n "$REVIEWER_SLACK_ID" ]; then
+              echo "PR_REVIEWER_SLACK_MENTION=<@$REVIEWER_SLACK_ID>" >> $GITHUB_OUTPUT
+            else
+              echo "PR_REVIEWER_SLACK_MENTION=$REVIEWER" >> $GITHUB_OUTPUT
+            fi
+          fi
 
       - name: Send Slack Notification (PR Opened)
         if: github.event.action == 'opened'
@@ -47,7 +72,7 @@ jobs:
         with:
           payload: |
             {
-              "text": "New PR opened by ${{ steps.pr_details.outputs.PR_USER }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}>",
+              "text": "New PR opened by ${{ steps.pr_details.outputs.PR_USER_SLACK_MENTION }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}>",
               "channel": "${{ env.SLACK_CHANNEL }}"
             }
         env:
@@ -60,7 +85,7 @@ jobs:
           RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
             -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
             -H "Content-Type: application/json" \
-            --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"limit\": ${{ env.MAX_MESSAGES }}}")
+            --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"limit\": 100}")
           
           # Find message with PR URL
           MESSAGE_TS=$(echo $RESPONSE | jq -r --arg url "${{ steps.pr_details.outputs.PR_URL }}" '.messages[] | select(.text | contains($url)) | .ts' | head -n1)
@@ -71,6 +96,12 @@ jobs:
               -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
               -H "Content-Type: application/json" \
               --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"name\": \"white_check_mark\", \"timestamp\": \"$MESSAGE_TS\"}"
+            
+            # Post approval comment
+            curl -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"thread_ts\": \"$MESSAGE_TS\", \"text\": \"PR approved by ${{ steps.pr_details.outputs.PR_REVIEWER_SLACK_MENTION }} ✅\"}"
           fi
 
       - name: Find and React to Message (Merged)
