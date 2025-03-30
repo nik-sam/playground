@@ -10,9 +10,6 @@ jobs:
   notify_slack:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
       - name: Get PR details
         id: pr_details
         run: |
@@ -30,34 +27,33 @@ jobs:
 
       - name: Send Slack Notification (PR Opened)
         if: env.TEAM_PR == 'true' && github.event.action == 'opened'
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "New PR opened by ${{ steps.pr_details.outputs.PR_USER }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}>"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.PLATFORM_UX_WEBHOOK_URL }}
-
-      - name: Send Slack Notification (PR Approved)
-        if: github.event.review.state == 'approved'
         id: slack_message
         uses: slackapi/slack-github-action@v1
         with:
           payload: |
             {
-              "text": "PR approved by ${{ steps.pr_details.outputs.PR_REVIEW_USER }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}> ✅",
+              "text": "New PR opened by ${{ steps.pr_details.outputs.PR_USER }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}>",
               "channel": "nik-playground"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.PLATFORM_UX_WEBHOOK_URL }}
 
-      - name: Add Green Checkmark Reaction
+      - name: Find and React to Message
         if: github.event.review.state == 'approved'
-        uses: slackapi/slack-github-action@v1
-        with:
-          channel-id: 'nik-playground'
-          slack-message-ts: ${{ steps.slack_message.outputs.ts }}
-          reaction: 'white_check_mark'
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          # First find the message
+          RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
+            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data "{\"channel\": \"nik-playground\", \"limit\": 100}")
+          
+          # Find message with PR URL
+          MESSAGE_TS=$(echo $RESPONSE | jq -r --arg url "${{ steps.pr_details.outputs.PR_URL }}" '.messages[] | select(.text | contains($url)) | .ts' | head -n1)
+          
+          if [ ! -z "$MESSAGE_TS" ]; then
+            # Add reaction
+            curl -X POST https://slack.com/api/reactions.add \
+              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              --data "{\"channel\": \"nik-playground\", \"name\": \"white_check_mark\", \"timestamp\": \"$MESSAGE_TS\"}"
+          fi
