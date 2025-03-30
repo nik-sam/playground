@@ -9,10 +9,17 @@ on:
 jobs:
   notify_slack:
     env:
-      PLATFORM_UX_TEAM_MEMBERS: '["nik-sam", "nik-sam@platform-ux.yml"]'  # Define here too
-    if: ${{ contains(fromJSON(job.env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login) || startsWith(github.event.pull_request.user.login, 'nik-sam') }}
+      PLATFORM_UX_TEAM_MEMBERS: '["nik-sam", "nik-sam@platform-ux.yml"]'
+    if: ${{ contains(fromJSON(env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login) || startsWith(github.event.pull_request.user.login, 'nik-sam') }}
     runs-on: ubuntu-latest
     steps:
+      - name: Debug Info
+        run: |
+          echo "PR Author: ${{ github.event.pull_request.user.login }}"
+          echo "Event Type: ${{ github.event.action }}"
+          echo "Team Members: ${{ env.PLATFORM_UX_TEAM_MEMBERS }}"
+          echo "Is team member: ${{ contains(fromJSON(env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login) }}"
+
       - name: Get PR details
         id: pr_details
         run: |
