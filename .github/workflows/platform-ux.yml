@@ -2,38 +2,43 @@ name: Slack PR Notification
 
 on:
   pull_request:
-    types: [opened, closed]
+    types: [review_requested, closed]
   pull_request_review:
     types: [submitted]
 
 env:
   SLACK_CHANNEL: "niks-playground"
-  # Mapping of GitHub usernames to Slack member IDs
-  # Format for mentions in Slack is <@SLACK_MEMBER_ID>
-  GITHUB_TO_SLACK_USERS: >-
+  # Mapping of GitHub usernames to display info:
+  # - slack_id: For @mentions in Slack (will be used for reviewers only)
+  # - display_name: Plain text name to display
+  USER_MAPPING: >-
     {
-      "nik-sam": "U08E3LB1N58",
-      "NikS-44": ""
+      "nik-sam": {
+        "slack_id": "U08E3LB1N58", 
+        "display_name": "Nik Shah"
+      },
+      "NikS-44": {
+        "slack_id": "", 
+        "display_name": "Nik Shah - Not Samsara"
+      }
     }
   
 jobs:
   notify_slack:
-    if: ${{ github.event.pull_request.user.login == 'nik-sam' || github.event.pull_request.user.login == 'NikS-44' }}
+    # Run when nik-sam or NikS-44 is requested for review, or for PR approvals/merges by any user
+    if: >-
+      (github.event.action == 'review_requested' && (github.event.requested_reviewer.login == 'nik-sam' || github.event.requested_reviewer.login == 'NikS-44')) ||
+      github.event.action == 'submitted' ||
+      github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
       - name: Debug Info
         run: |
-          echo "PR Author: ${{ github.event.pull_request.user.login }}"
           echo "Event Type: ${{ github.event.action }}"
-          echo "GitHub Username: ${{ github.event.pull_request.user.login }}"
-          echo "Slack ID Mapping: ${{ env.GITHUB_TO_SLACK_USERS }}"
-          
-          # Extract the Slack ID for the GitHub user using jq (if jq is available)
-          if command -v jq &> /dev/null; then
-            GITHUB_USER="${{ github.event.pull_request.user.login }}"
-            SLACK_ID=$(echo '${{ env.GITHUB_TO_SLACK_USERS }}' | jq -r --arg user "$GITHUB_USER" '.[$user] // "unknown"')
-            echo "Mapped Slack ID: $SLACK_ID"
-          fi 
+          echo "PR Author: ${{ github.event.pull_request.user.login }}"
+          if [[ "${{ github.event.action }}" == "review_requested" ]]; then
+            echo "Requested Reviewer: ${{ github.event.requested_reviewer.login }}"
+          fi
 
       - name: Get PR details
         id: pr_details
@@ -41,38 +46,63 @@ jobs:
           echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           echo "PR_TITLE=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
           echo "PR_URL=${{ github.event.pull_request.html_url }}" >> $GITHUB_OUTPUT
-          echo "PR_USER=${{ github.event.pull_request.user.login }}" >> $GITHUB_OUTPUT
-          echo "PR_REVIEW_STATE=${{ github.event.review.state }}" >> $GITHUB_OUTPUT
-          echo "PR_REVIEW_USER=${{ github.event.review.user.login }}" >> $GITHUB_OUTPUT
           
-          # Get Slack ID from GitHub username
-          GITHUB_USER="${{ github.event.pull_request.user.login }}"
-          PR_USER_SLACK_ID=$(echo '${{ env.GITHUB_TO_SLACK_USERS }}' | jq -r --arg user "$GITHUB_USER" '.[$user] // ""')
-          if [ -n "$PR_USER_SLACK_ID" ]; then
-            echo "PR_USER_SLACK_MENTION=<@$PR_USER_SLACK_ID>" >> $GITHUB_OUTPUT
+          # Get PR author's name (never using mentions)
+          PR_USER="${{ github.event.pull_request.user.login }}"
+          MAPPING=$(echo '${{ env.USER_MAPPING }}' | jq -r --arg user "$PR_USER" '.[$user] // {}')
+          DISPLAY_NAME=$(echo "$MAPPING" | jq -r '.display_name // ""')
+          
+          if [[ -n "$DISPLAY_NAME" ]]; then
+            echo "PR_AUTHOR_DISPLAY=$DISPLAY_NAME" >> $GITHUB_OUTPUT
           else
-            echo "PR_USER_SLACK_MENTION=$GITHUB_USER" >> $GITHUB_OUTPUT
+            echo "PR_AUTHOR_DISPLAY=$PR_USER" >> $GITHUB_OUTPUT
           fi
           
-          # Get reviewer's Slack ID if applicable
-          if [ -n "${{ github.event.review.user.login }}" ]; then
-            REVIEWER="${{ github.event.review.user.login }}"
-            REVIEWER_SLACK_ID=$(echo '${{ env.GITHUB_TO_SLACK_USERS }}' | jq -r --arg user "$REVIEWER" '.[$user] // ""')
-            if [ -n "$REVIEWER_SLACK_ID" ]; then
-              echo "PR_REVIEWER_SLACK_MENTION=<@$REVIEWER_SLACK_ID>" >> $GITHUB_OUTPUT
+          # Get reviewer's display info (always using mentions if slack_id is available)
+          if [[ "${{ github.event.action }}" == "review_requested" ]]; then
+            REVIEWER="${{ github.event.requested_reviewer.login }}"
+            MAPPING=$(echo '${{ env.USER_MAPPING }}' | jq -r --arg user "$REVIEWER" '.[$user] // {}')
+            
+            SLACK_ID=$(echo "$MAPPING" | jq -r '.slack_id // ""')
+            DISPLAY_NAME=$(echo "$MAPPING" | jq -r '.display_name // ""')
+            
+            if [[ -n "$SLACK_ID" ]]; then
+              echo "REVIEWER_DISPLAY=<@$SLACK_ID>" >> $GITHUB_OUTPUT
+            elif [[ -n "$DISPLAY_NAME" ]]; then
+              echo "REVIEWER_DISPLAY=$DISPLAY_NAME" >> $GITHUB_OUTPUT
             else
-              echo "PR_REVIEWER_SLACK_MENTION=$REVIEWER" >> $GITHUB_OUTPUT
+              echo "REVIEWER_DISPLAY=$REVIEWER" >> $GITHUB_OUTPUT
+            fi
+          fi
+          
+          # Get review details if applicable
+          if [[ "${{ github.event.action }}" == "submitted" ]]; then
+            echo "PR_REVIEW_STATE=${{ github.event.review.state }}" >> $GITHUB_OUTPUT
+            echo "PR_REVIEW_USER=${{ github.event.review.user.login }}" >> $GITHUB_OUTPUT
+            
+            REVIEW_USER="${{ github.event.review.user.login }}"
+            MAPPING=$(echo '${{ env.USER_MAPPING }}' | jq -r --arg user "$REVIEW_USER" '.[$user] // {}')
+            
+            SLACK_ID=$(echo "$MAPPING" | jq -r '.slack_id // ""')
+            DISPLAY_NAME=$(echo "$MAPPING" | jq -r '.display_name // ""')
+            
+            if [[ -n "$SLACK_ID" ]]; then
+              echo "REVIEWER_DISPLAY=<@$SLACK_ID>" >> $GITHUB_OUTPUT
+            elif [[ -n "$DISPLAY_NAME" ]]; then
+              echo "REVIEWER_DISPLAY=$DISPLAY_NAME" >> $GITHUB_OUTPUT
+            else
+              echo "REVIEWER_DISPLAY=$REVIEW_USER" >> $GITHUB_OUTPUT
             fi
           fi
 
-      - name: Send Slack Notification (PR Opened)
-        if: github.event.action == 'opened'
+      - name: Send Slack Notification (Review Requested)
+        if: github.event.action == 'review_requested'
         id: slack_message
         uses: slackapi/slack-github-action@v1
         with:
           payload: |
             {
-              "text": "New PR opened by ${{ steps.pr_details.outputs.PR_USER_SLACK_MENTION }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}>",
+              "text": "Review requested from ${{ steps.pr_details.outputs.REVIEWER_DISPLAY }} for PR: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}>",
               "channel": "${{ env.SLACK_CHANNEL }}"
             }
         env:
@@ -101,7 +131,7 @@ jobs:
             curl -X POST https://slack.com/api/chat.postMessage \
               -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
               -H "Content-Type: application/json" \
-              --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"thread_ts\": \"$MESSAGE_TS\", \"text\": \"PR approved by ${{ steps.pr_details.outputs.PR_REVIEWER_SLACK_MENTION }} ✅\"}"
+              --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"thread_ts\": \"$MESSAGE_TS\", \"text\": \"PR approved by ${{ steps.pr_details.outputs.REVIEWER_DISPLAY }} ✅\"}"
           fi
 
       - name: Find and React to Message (Merged)
@@ -111,7 +141,7 @@ jobs:
           RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
             -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
             -H "Content-Type: application/json" \
-            --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"limit\": ${{ env.MAX_MESSAGES }}}")
+            --data "{\"channel\": \"${{ env.SLACK_CHANNEL }}\", \"limit\": 100}")
           
           # Find message with PR URL
           MESSAGE_TS=$(echo $RESPONSE | jq -r --arg url "${{ steps.pr_details.outputs.PR_URL }}" '.messages[] | select(.text | contains($url)) | .ts' | head -n1)
