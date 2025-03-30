@@ -24,7 +24,7 @@ jobs:
           echo "PR_REVIEW_USER=${{ github.event.review.user.login }}" >> $GITHUB_OUTPUT
 
       - name: Filter by Team and PR Open
-        if: ${{ github.event.pull_request.user.login == 'nik-sam' && github.event.action == 'opened' }}
+        if: ${{ (github.event.pull_request.user.login == 'nik-sam' || github.event.pull_request.user.login == 'NikS-44') && github.event.action == 'opened' }}
         run: |
           echo "TEAM_PR=true" >> $GITHUB_ENV
 
