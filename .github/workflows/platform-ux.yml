@@ -2,12 +2,21 @@ name: Slack PR Notification
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, closed]
   pull_request_review:
     types: [submitted]
+  
+
+# Define team members in one place
+env:
+  PLATFORM_UX_TEAM_MEMBERS: >-
+    [
+      'nik-sam',
+    ]
 
 jobs:
   notify_slack:
+    if: contains(fromJSON(env.PLATFORM_UX_TEAM_MEMBERS), github.event.pull_request.user.login)
     runs-on: ubuntu-latest
     steps:
       - name: Get PR details
@@ -20,32 +29,27 @@ jobs:
           echo "PR_REVIEW_STATE=${{ github.event.review.state }}" >> $GITHUB_OUTPUT
           echo "PR_REVIEW_USER=${{ github.event.review.user.login }}" >> $GITHUB_OUTPUT
 
-      - name: Filter by Team and PR Open
-        if: ${{ (github.event.pull_request.user.login == 'nik-sam' || github.event.pull_request.user.login == 'NikS-44') && github.event.action == 'opened' }}
-        run: |
-          echo "TEAM_PR=true" >> $GITHUB_ENV
-
       - name: Send Slack Notification (PR Opened)
-        if: env.TEAM_PR == 'true' && github.event.action == 'opened'
+        if: github.event.action == 'opened'
         id: slack_message
         uses: slackapi/slack-github-action@v1
         with:
           payload: |
             {
               "text": "New PR opened by ${{ steps.pr_details.outputs.PR_USER }}: <${{ steps.pr_details.outputs.PR_URL }}|${{ steps.pr_details.outputs.PR_TITLE }}>",
-              "channel": "nik-playground"
+              "channel": "niks-playground"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.PLATFORM_UX_WEBHOOK_URL }}
 
-      - name: Find and React to Message
+      - name: Find and React to Message (Approved)
         if: github.event.review.state == 'approved'
         run: |
           # First find the message
           RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
             -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
             -H "Content-Type: application/json" \
-            --data "{\"channel\": \"nik-playground\", \"limit\": 100}")
+            --data "{\"channel\": \"niks-playground\", \"limit\": 100}")
           
           # Find message with PR URL
           MESSAGE_TS=$(echo $RESPONSE | jq -r --arg url "${{ steps.pr_details.outputs.PR_URL }}" '.messages[] | select(.text | contains($url)) | .ts' | head -n1)
@@ -55,5 +59,25 @@ jobs:
             curl -X POST https://slack.com/api/reactions.add \
               -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
               -H "Content-Type: application/json" \
-              --data "{\"channel\": \"nik-playground\", \"name\": \"white_check_mark\", \"timestamp\": \"$MESSAGE_TS\"}"
+              --data "{\"channel\": \"niks-playground\", \"name\": \"white_check_mark\", \"timestamp\": \"$MESSAGE_TS\"}"
+          fi
+
+      - name: Find and React to Message (Merged)
+        if: github.event.pull_request.merged == true
+        run: |
+          # First find the message
+          RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
+            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data "{\"channel\": \"niks-playground\", \"limit\": 100}")
+          
+          # Find message with PR URL
+          MESSAGE_TS=$(echo $RESPONSE | jq -r --arg url "${{ steps.pr_details.outputs.PR_URL }}" '.messages[] | select(.text | contains($url)) | .ts' | head -n1)
+          
+          if [ ! -z "$MESSAGE_TS" ]; then
+            # Add merge reaction
+            curl -X POST https://slack.com/api/reactions.add \
+              -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              --data "{\"channel\": \"niks-playground\", \"name\": \"arrows_counterclockwise\", \"timestamp\": \"$MESSAGE_TS\"}"
           fi
