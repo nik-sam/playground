@@ -6,14 +6,8 @@ on:
   pull_request_review:
     types: [submitted]
   
-
-# Define team members in one place
 env:
-  PLATFORM_UX_TEAM_MEMBERS: >-
-    [
-      'nik-sam',
-      'nik-sam@platform-ux.yml'
-    ]
+  PLATFORM_UX_TEAM_MEMBERS: '["nik-sam", "nik-sam@platform-ux.yml"]'
 
 jobs:
   debug:
