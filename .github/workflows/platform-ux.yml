@@ -17,29 +17,120 @@ env:
         "slack_id": "U08E3LB1N58", 
         "display_name": "Nik Shah"
       },
+      "nathanboktae": {
+        "slack_id": "U05LL2VTCMQ", 
+        "display_name": "Nathan Black"
+      },
+      "mparkms": {
+        "slack_id": "U05D7KG510V", 
+        "display_name": "Mike Park"
+      },
+      "kieter": {
+        "slack_id": "U08138DJFCN", 
+        "display_name": "Ki Balisnomo"
+      },
+      "mheasell-samsara": {
+        "slack_id": "UPM82SML0", 
+        "display_name": "Mike Park"
+      },
+      "aokarkau": {
+        "slack_id": "U0668ALQHK7", 
+        "display_name": "Alex Okarkau"
+      },
+      "ethbutler": {
+        "slack_id": "U05G15UJEG6", 
+        "display_name": "Eth Butler"
+      },
+      "gillianokaiteye": {
+        "slack_id": "U06MJ9LK7U6", 
+        "display_name": "Gillian Okaiteye"
+      },
+      "awakening-owl": {
+        "slack_id": "U070WCL9CS2", 
+        "display_name": "Jack Lin"
+      },
+      "declanSamsara": {
+        "slack_id": "U072GNN9XHP", 
+        "display_name": "Declan Herbertson"
+      },
       "NikS-44": {
         "slack_id": "", 
-        "display_name": "Nik Shah - Not Samsara"
+        "display_name": "Nik Shah - Personal"
       }
     }
+  TEAM_USERNAMES: >-
+    ["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]
+  # GitHub team name for the platform-ux team
+  PLATFORM_UX_TEAM: "platform-ux"
   
 jobs:
+  check_users:
+    runs-on: ubuntu-latest
+    # Top-level condition: Only run this job if PR author is in our team
+    if: contains(fromJSON(env.TEAM_USERNAMES), github.event.pull_request.user.login)
+    outputs:
+      should_notify: ${{ steps.check.outputs.should_notify }}
+    steps:
+      - id: check
+        run: |
+          SHOULD_NOTIFY="false"
+          TEAM_USERNAMES='${{ env.TEAM_USERNAMES }}'
+          
+          # PR author is already confirmed to be on our team via the job condition
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          echo "PR author ($PR_AUTHOR) is on our team - checking other conditions"
+          
+          # Process specific event types
+          if [[ "${{ github.event.action }}" == "review_requested" ]]; then
+            # Check if reviewer is a team or a user
+            if [[ "${{ github.event.requested_reviewer.type }}" == "Team" ]]; then
+              REVIEWER_TEAM="${{ github.event.requested_reviewer.name }}"
+              # SECOND CONDITION: Is the requested team the platform-ux team?
+              if [[ "$REVIEWER_TEAM" == "${{ env.PLATFORM_UX_TEAM }}" ]]; then
+                echo "Team member $PR_AUTHOR requested review from platform-ux team"
+                SHOULD_NOTIFY="true"
+              else
+                echo "Review was requested for a team ($REVIEWER_TEAM) that is not platform-ux"
+              fi
+            else
+              # Regular user review request
+              REVIEWER="${{ github.event.requested_reviewer.login }}"
+              
+              # SECOND CONDITION: Is the reviewer on our team?
+              if [[ $TEAM_USERNAMES == *"\"$REVIEWER\""* ]]; then
+                echo "Team member $PR_AUTHOR requested review from team member $REVIEWER"
+                SHOULD_NOTIFY="true"
+              else
+                echo "Reviewer ($REVIEWER) is not on our team"
+              fi
+            fi
+          elif [[ "${{ github.event.action }}" == "submitted" && "${{ github.event.review.state }}" == "approved" ]]; then
+            # For PR approval
+            REVIEWER="${{ github.event.review.user.login }}"
+            
+            # SECOND CONDITION: Is the reviewer on our team?
+            if [[ $TEAM_USERNAMES == *"\"$REVIEWER\""* ]]; then
+              echo "PR from team member $PR_AUTHOR was approved by team member $REVIEWER"
+              SHOULD_NOTIFY="true"
+            else
+              echo "Reviewer ($REVIEWER) is not on our team"
+            fi
+          elif [[ "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then
+            # For merges, we already confirmed PR is from our team, so always notify
+            echo "PR from team member $PR_AUTHOR was merged"
+            SHOULD_NOTIFY="true"
+          fi
+          
+          echo "should_notify=$SHOULD_NOTIFY" >> $GITHUB_OUTPUT
+          echo "Final decision: should_notify=$SHOULD_NOTIFY"
+
   notify_slack:
-    # Run when nik-sam or NikS-44 is requested for review, or for PR approvals/merges by any user
-    if: >-
-      (github.event.action == 'review_requested' && (github.event.requested_reviewer.login == 'nik-sam' || github.event.requested_reviewer.login == 'NikS-44')) ||
-      github.event.action == 'submitted' ||
-      github.event.action == 'closed'
+    # This job requires check_users to have run
+    needs: check_users
+    # Only run if check_users passed AND it says we should notify
+    if: needs.check_users.outputs.should_notify == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Debug Info
-        run: |
-          echo "Event Type: ${{ github.event.action }}"
-          echo "PR Author: ${{ github.event.pull_request.user.login }}"
-          if [[ "${{ github.event.action }}" == "review_requested" ]]; then
-            echo "Requested Reviewer: ${{ github.event.requested_reviewer.login }}"
-          fi
-
       - name: Get PR details
         id: pr_details
         run: |
@@ -60,18 +151,25 @@ jobs:
           
           # Get reviewer's display info (always using mentions if slack_id is available)
           if [[ "${{ github.event.action }}" == "review_requested" ]]; then
-            REVIEWER="${{ github.event.requested_reviewer.login }}"
-            MAPPING=$(echo '${{ env.USER_MAPPING }}' | jq -r --arg user "$REVIEWER" '.[$user] // {}')
-            
-            SLACK_ID=$(echo "$MAPPING" | jq -r '.slack_id // ""')
-            DISPLAY_NAME=$(echo "$MAPPING" | jq -r '.display_name // ""')
-            
-            if [[ -n "$SLACK_ID" ]]; then
-              echo "REVIEWER_DISPLAY=<@$SLACK_ID>" >> $GITHUB_OUTPUT
-            elif [[ -n "$DISPLAY_NAME" ]]; then
-              echo "REVIEWER_DISPLAY=$DISPLAY_NAME" >> $GITHUB_OUTPUT
+            # Check if it's a team review request
+            if [[ "${{ github.event.requested_reviewer.type }}" == "Team" ]]; then
+              REVIEWER_TEAM="${{ github.event.requested_reviewer.name }}"
+              echo "REVIEWER_DISPLAY=@$REVIEWER_TEAM team" >> $GITHUB_OUTPUT
             else
-              echo "REVIEWER_DISPLAY=$REVIEWER" >> $GITHUB_OUTPUT
+              # Individual reviewer
+              REVIEWER="${{ github.event.requested_reviewer.login }}"
+              MAPPING=$(echo '${{ env.USER_MAPPING }}' | jq -r --arg user "$REVIEWER" '.[$user] // {}')
+              
+              SLACK_ID=$(echo "$MAPPING" | jq -r '.slack_id // ""')
+              DISPLAY_NAME=$(echo "$MAPPING" | jq -r '.display_name // ""')
+              
+              if [[ -n "$SLACK_ID" ]]; then
+                echo "REVIEWER_DISPLAY=<@$SLACK_ID>" >> $GITHUB_OUTPUT
+              elif [[ -n "$DISPLAY_NAME" ]]; then
+                echo "REVIEWER_DISPLAY=$DISPLAY_NAME" >> $GITHUB_OUTPUT
+              else
+                echo "REVIEWER_DISPLAY=$REVIEWER" >> $GITHUB_OUTPUT
+              fi
             fi
           fi
           
