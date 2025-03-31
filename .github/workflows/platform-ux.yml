@@ -58,16 +58,12 @@ env:
         "display_name": "Nik Shah - Personal"
       }
     }
-  TEAM_USERNAMES: >-
-    ["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]
-  # GitHub team name for the platform-ux team
   PLATFORM_UX_TEAM: "platform-ux"
   
 jobs:
   check_users:
     runs-on: ubuntu-latest
-    # Top-level condition: Only run this job if PR author is in our team
-    if: contains(fromJSON(env.TEAM_USERNAMES), github.event.pull_request.user.login)
+    if: contains(fromJSON('["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]'), github.event.pull_request.user.login)
     outputs:
       should_notify: ${{ steps.check.outputs.should_notify }}
     steps:
