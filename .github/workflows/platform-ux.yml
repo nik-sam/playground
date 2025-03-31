@@ -61,9 +61,52 @@ env:
   PLATFORM_UX_TEAM: "platform-ux"
   
 jobs:
+  debug_user_check:
+    # This job always runs to debug the condition
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug PR Author and Condition
+        run: |
+          echo "PR Author: ${{ github.event.pull_request.user.login }}"
+          echo "Is PR Author 'nik-sam'? ${{ github.event.pull_request.user.login == 'nik-sam' }}"
+          echo "Full team list: ["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]"
+          echo "Manual check for nik-sam: ${{ contains('["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]', 'nik-sam') }}"
+          echo "Expression check with author: ${{ contains('["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]', github.event.pull_request.user.login) }}"
+          echo "fromJSON check: ${{ contains(fromJSON('["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]'), github.event.pull_request.user.login) }}"
+          
+          # Let's try a more verbose approach to see what's happening
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          echo "PR Author stored in variable: $PR_AUTHOR"
+          
+          # Examine the event context more thoroughly
+          echo "github.event type: ${{ github.event_name }}"
+          echo "github.event.action: ${{ github.event.action }}"
+          
+          # Debug the pulled request information
+          echo "Pull Request Number: ${{ github.event.pull_request.number }}"
+          echo "Pull Request State: ${{ github.event.pull_request.state }}"
+          
+          # Try a different approach to check team membership
+          if [[ "$PR_AUTHOR" == "nik-sam" || 
+                "$PR_AUTHOR" == "nathanboktae" || 
+                "$PR_AUTHOR" == "mparkms" || 
+                "$PR_AUTHOR" == "kieter" || 
+                "$PR_AUTHOR" == "mheasell-samsara" || 
+                "$PR_AUTHOR" == "aokarkau" || 
+                "$PR_AUTHOR" == "ethbutler" || 
+                "$PR_AUTHOR" == "gillianokaiteye" || 
+                "$PR_AUTHOR" == "awakening-owl" || 
+                "$PR_AUTHOR" == "declanSamsara" ]]; then
+            echo "Shell check shows PR author IS in the team list"
+          else
+            echo "Shell check shows PR author IS NOT in the team list"
+          fi
+
   check_users:
     runs-on: ubuntu-latest
-    if: contains(fromJSON('["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]'), github.event.pull_request.user.login)
+    needs: debug_user_check
+    # Simplified version of the check without fromJSON to see if that's the issue
+    if: contains('["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]', github.event.pull_request.user.login)
     outputs:
       should_notify: ${{ steps.check.outputs.should_notify }}
     steps:
