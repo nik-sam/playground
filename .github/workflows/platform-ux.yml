@@ -59,7 +59,7 @@ env:
       }
     }
   TEAM_USERNAMES: >-
-    ["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]
+    ["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara", "NikS-44"]
   PLATFORM_UX_TEAM: "platform-ux"
   
 jobs:
