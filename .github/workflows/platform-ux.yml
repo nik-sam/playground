@@ -65,7 +65,7 @@ env:
 jobs:
   check_users:
     runs-on: ubuntu-latest
-    if: contains(fromJSON('["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara"]'), github.event.pull_request.user.login)
+    if: contains(fromJSON('["nik-sam","nathanboktae","mparkms","kieter","mheasell-samsara","aokarkau","ethbutler","gillianokaiteye","awakening-owl","declanSamsara", "NikS-44"]'), github.event.pull_request.user.login)
     outputs:
       should_notify: ${{ steps.check.outputs.should_notify }}
     steps:
